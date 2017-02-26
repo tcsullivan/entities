@@ -7,10 +7,10 @@
 
 #include <algorithm> // std::find_if
 #include <type_traits> // std::is_convertible
-//#include "pvector.hpp"
 #include <vector>
+#include <forward_list>
+#include <map>
 
-#define Container std::vector
 
 /**
  * @class Component
@@ -35,7 +35,8 @@ struct EntityData {
 	Id id;
 
 	/** A vector of all components. */
-	Container<Component*> components;
+	std::forward_list<size_t> componentHash;
+	std::forward_list<Component*> components;
 
 	/** Constructs an entity with the given ID. */
 	EntityData(Id _id = -1)
@@ -54,10 +55,10 @@ struct EntityData {
  * EntityManager's EntityData array.
  */
 struct Entity {
-	Container<EntityData>::iterator pos;
+	std::vector<EntityData>::iterator pos;
 
 	/** Constructs an entity object to handle the given entity data. */
-	Entity(Container<EntityData>::iterator p)
+	Entity(std::vector<EntityData>::iterator p)
 		:  pos(p) {}
 	Entity(EntityData& d)
 		: pos(&d) {}
@@ -72,7 +73,8 @@ struct Entity {
 		static_assert(std::is_convertible<T*, Component*>::value,
 			"components must inherit Component base class");
 		auto comp = new T(args...);
-		(*pos).components.push_back(comp);
+		(*pos).components.push_front(comp);
+		(*pos).componentHash.emplace_front(typeid(T).hash_code());
 		return comp;
 	}
 
@@ -83,10 +85,15 @@ struct Entity {
 	void remove(void) {
 		static_assert(std::is_convertible<T*, Component*>::value,
 			"components must inherit Component base class");
-		auto c = std::find_if((*pos).components.begin(), (*pos).components.end(),
-			[](auto c){ return dynamic_cast<T*>(c); });
-		if (c != (*pos).components.end())
-			(*pos).components.erase(c);
+		auto it = (*pos).componentHash.begin();
+		auto ic = (*pos).components.before_begin();
+		for (; it != (*pos).componentHash.end(); ic++, it++) {
+			if (*it == typeid(T).hash_code()) {
+				(*pos).components.erase_after(ic);
+				break;
+			}
+		}
+		(*pos).componentHash.remove(typeid(T).hash_code());
 	}
 
 	/**
@@ -97,9 +104,7 @@ struct Entity {
 	bool hasComponent(void) const {
 		static_assert(std::is_convertible<T*, Component*>::value,
 			"components must inherit Component base class");
-		auto c = std::find_if((*pos).components.begin(), (*pos).components.end(),
-			[](auto c){ return dynamic_cast<T*>(c); });
-		return c != (*pos).components.end();
+		return std::binary_search((*pos).componentHash.begin(), (*pos).componentHash.end(), typeid(T).hash_code());
 	}
 
 	/**
@@ -110,9 +115,13 @@ struct Entity {
 	T* component(void) {
 		static_assert(std::is_convertible<T*, Component*>::value,
 			"components must inherit Component base class");
-		auto c = std::find_if((*pos).components.begin(), (*pos).components.end(),
-			[](auto c){ return dynamic_cast<T*>(c); });
-		return (c != (*pos).components.end()) ? dynamic_cast<T*>(*c) : nullptr;
+		auto it = (*pos).componentHash.begin();
+		auto ic = (*pos).components.begin();
+		for (; it != (*pos).componentHash.end(); ic++, it++) {
+			if (*it == typeid(T).hash_code())
+				return dynamic_cast<T*>(*ic);
+		}
+		return nullptr;
 	}
 };
 
@@ -123,7 +132,7 @@ struct Entity {
 class EntityManager {
 private:
 	/** The array of all entities. */
-	Container<EntityData> entities;
+	std::vector<EntityData> entities;
 
 public:
 	// max is not enforced
@@ -170,46 +179,25 @@ public:
 			f(Entity(i));
 	}
 
-	template<class T1>
-	void trySort(void) {
-		static unsigned int oldSize = 0;
-		if (entities.size() < 100000 && entities.size() != oldSize) {
-			oldSize = entities.size();
-
-			std::sort(entities.begin(), entities.end(),
-			[](auto&& e1, auto&& e2){
-					return Entity(e1).hasComponent<T1>() && !Entity(e2).hasComponent<T1>();
-			});
-		}
-	}
-
 	/**
 	 * Runs a function through all entities with the given components.
 	 * @param f the function to run through
 	 */
 	template<class T1>
 	void each(std::function<void(Entity e)> f) {
-		trySort<T1>();
-		bool good = false;
 		for (auto i = entities.begin(); i < entities.end(); ++i) {
 			Entity en (i);
-			if (en.hasComponent<T1>()) {
+			if (en.hasComponent<T1>())
 				f(en);
-				good = true;
-			} else if (good) break;
 		}
 	}
 
 	template<class T1, class T2>
 	void each(std::function<void(Entity e)> f) {
-		trySort<T1>();
-		bool good = false;
 		for (auto i = entities.begin(); i < entities.end(); ++i) {
 			Entity en (i);
-			if (en.hasComponent<T1>() && en.hasComponent<T2>()) {
+			if (en.hasComponent<T1>() && en.hasComponent<T2>())
 				f(en);
-				good = true;
-			} else if (good) break;
 		}
 	}
 };
@@ -225,7 +213,7 @@ public:
 
 class SystemManager {
 private:
-	Container<System*> systems;
+	std::map<size_t, System*> systems;
 	EntityManager& entities;
 
 public:
@@ -236,19 +224,14 @@ public:
 	void add(Args... args) {
 		static_assert(std::is_convertible<T*, System*>::value,
 			"systems must inherit System base class");
-		systems.push_back(new T(args...));
+		systems.try_emplace(typeid(T).hash_code(), new T(args...));
 	}
 
 	template<class T>
 	void update(DeltaTime dt) {
 		static_assert(std::is_convertible<T*, System*>::value,
 			"systems must inherit System base class");
-		for (auto s : systems) {
-			if (dynamic_cast<T*>(s)) {
-				s->update(entities, dt);
-				return;
-			}
-		}
+		systems.at(typeid(T).hash_code())->update(entities, dt);
 	}
 };
 
