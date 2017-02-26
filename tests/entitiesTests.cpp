@@ -6,7 +6,7 @@
 #define BENCHPRESS_CONFIG_MAIN
 #include "benchpress.hpp"
 
-#include "entities.hpp"
+#include "../entities.hpp"
 
 #include "entitiesBenchmark.h"
 
@@ -23,7 +23,7 @@ inline void init_entities(EntityManager& entities, size_t nentities){
 	}
 }
 
-inline void runEntitiesSystemsEntityXBenchmark(benchpress::context* ctx, size_t nentities) {
+inline void runEntitiesSystemsEntitiesBenchmark(benchpress::context* ctx, size_t nentities) {
     EntitiesBenchmark::Application app;
     auto& entities = app.em;
 
@@ -38,7 +38,7 @@ inline void runEntitiesSystemsEntityXBenchmark(benchpress::context* ctx, size_t 
 
 
 
-BENCHMARK("entityx create destroy entity with components", [](benchpress::context* ctx) {
+BENCHMARK("entities create destroy entity with components", [](benchpress::context* ctx) {
     EntityManager entities;
 
     ctx->reset_timer();
@@ -57,7 +57,7 @@ BENCHMARK("entityx create destroy entity with components", [](benchpress::contex
 
 
 
-class BenchmarksEntityX {
+class BenchmarksEntities {
     public:
     static const std::vector<int> ENTITIES;
 
@@ -77,16 +77,16 @@ class BenchmarksEntityX {
 
             std::string benchmark_name = ss.str();
             BENCHMARK(benchmark_name, [nentities](benchpress::context* ctx) {
-                runEntitiesSystemsEntityXBenchmark(ctx, nentities);
+                runEntitiesSystemsEntitiesBenchmark(ctx, nentities);
             })
         }
     }
 
-    BenchmarksEntityX(std::string name){
+    BenchmarksEntities(std::string name){
         makeBenchmarks(name);
     }
 };
-const std::vector<int> BenchmarksEntityX::ENTITIES = {
+const std::vector<int> BenchmarksEntities::ENTITIES = {
     25, 50, 
     100, 200, 400, 800, 
     1600, 3200, 5000, 
@@ -95,7 +95,7 @@ const std::vector<int> BenchmarksEntityX::ENTITIES = {
     1'000'000, 2'000'000
 };
 
-BenchmarksEntityX entityxbenchmarks ("entityx");
+BenchmarksEntities entitiesBenchmarks ("entities");
 
 
 

@@ -8,7 +8,7 @@
 #include <numeric>
 #include <functional>
 
-#include "entities.hpp"
+#include "../entities.hpp"
 
 class EntitiesBenchmark {
     public:
