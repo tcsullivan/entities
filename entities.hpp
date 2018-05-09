@@ -6,10 +6,11 @@
 #define ENTITIES_HPP_
 
 #include <algorithm> // std::find_if
+#include <forward_list>
+#include <functional>
+#include <map>
 #include <type_traits> // std::is_convertible
 #include <vector>
-#include <forward_list>
-#include <map>
 
 
 /**
